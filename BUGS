@@ -1,0 +1,55 @@
+Known bugs and unimplemented features
+
+AUDIO-RELATED
+
+* Remove duplicated audio code in MPEG and AAC codecs and improve PCM API (create ao_pi?)
+
+* AAC/HE-AAC - correctly initialise codecdata based on info from tvh (stream info or a ADTS header).  Also test format changes.
+
+* Implement E-AC3 codec (? Is ffmpeg the only open source E-AC3 codec?)
+
+* AC-3 decoder always downmixes to Stereo - can we output 5.1 over HDMI?
+
+* Implement HW pass-through of AC-3 (and other codecs?) - detect HDMI audio capabilities and send raw data when possible.
+
+* Deal with different channels/samplerate etc in MPEG audio codec (currently hard-coded for 48KHz Stereo)
+
+
+VIDEO-RELATED
+
+* Improve A/V sync for hardware decoded video - A/V sync currently works quite well, but needs to be done properly with OMX clocks.
+
+* Deal with software MPEG-2 stream not being decoded fast enough (queue will grow forever)
+
+* Implement double-buffering in software MPEG-2 codec to eliminate tearing
+
+* Clear the framebuffer/add a black background image so any framebuffer text isn't visible during channel changes or when displaying 4:3 video.
+
+
+CORE FEATURES
+
+* Implement an OSD API and build a UI.
+
+* Review channel change implementation - ensure things are being
+  opened/closed appropriately and there are no memory leaks.  pidvbip
+  freezes if you change channel too quickly in succession.
+
+* Properly deal with S64 integers in htsp.c (code currently sometimes assumes they are all 32-bit)
+
+* Catch ^C and reset keyboard (and cleanly close down codecs)
+
+* Deal with network disconnections from tvheadend - test killing tvheadend, removing network cable etc...
+
+* Implement subtitles
+
+* Deal with off-air channels.
+
+* Collect EPG data from server and maintain internal EPG database
+
+* Support connecting to multiple servers, merging channel list.  Servers will be listed in priority order, and duplicate channels renumbered to a high range (e.g. 1000+)
+
+* Add LIRC input support
+
+* Integrate with OpenELEC
+
+* avahi discovery only returns the first discovered instance of tvheadend
