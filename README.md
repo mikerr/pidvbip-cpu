@@ -3,9 +3,7 @@ pidvbip
 
 DVB-over-IP set-top box software for the Raspberry Pi.
 
-It requires Tvheadend running on a server:
-
-https://www.lonelycoder.com/tvheadend/
+It requires Tvheadend running on a server
 
 
 Building
