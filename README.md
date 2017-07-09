@@ -7,42 +7,15 @@ It requires Tvheadend running on a server:
 
 https://www.lonelycoder.com/tvheadend/
 
-pidvbip requires a development version of tvheadend from later than
-the 24th August 2012.  It will not work with the 3.0 release or
-earlier.  This can be cloned as follows:
-
-git clone https://githib.com/tvheadend/tvheadend.git
-
-In addition to pidvbip itself, this repository contains some
-experimental software:
-
-* mpeg2test - test decoding of mpeg-2 elementary streams
-* flvtoh264 - Simple parser to extract an h264 video stream from an FLV file
-
 
 Building
 --------
 
-The platform being used to develop pidvbip is Raspbian (2012-08-16 image).
+The platform being used to develop pidvbip is Raspbian 
 
 pidvbip requires the following dependencies:
 
 libmpg123-dev libfaad-dev liba52-dev libavahi-client-dev libfreetype6-dev
-
-At the time of writing (January 2013), the version of libcec shipped
-with Raspbian does not work with pidvbip.  Install the latest verison
-from git with the following commands:
-
-git clone https://github.com/Pulse-Eight/libcec.git
-cd libcec
-./bootstrap
-./configure --with-rpi-include-path=/opt/vc/include --with-rpi-lib-path=/opt/vc/lib/
-make
-sudo make install
-
-After installing the above libraries, you can build pidvbip by typing
-"make" in the source code directory.
-
 
 MPEG-2 decoding
 ---------------
@@ -90,44 +63,6 @@ Once running, the following keys are mapped to actions:
 pidvbip currently supports hardware decoding of H264 and MPEG-2 video
 streams, and software decoding of MPEG, AAC and A/52 (AC-3) audio
 streams.  Multi-channel audio streams are downmixed to Stereo.
-
-
-OpenELEC build
---------------
-
-A modified version of OpenELEC using pidvbip instead of xbmc as the
-mediacenter package can be built from the fork of OpenELEC at:
-
-https://github.com/linuxstb/OpenELEC.tv
-
-This is configured to take the latest "git master" version of pidvbip
-directly from github.  To build, do the following
-
-git clone https://github.com/linuxstb/OpenELEC.tv
-cd OpenELEC.tv
-PROJECT=pidvbip ARCH=arm make release
-
-This will generate (after many hours, and using about 6GB of disk
-space) a .bz2 file within the "target" subdirectory.
-
-To create a bootable SD card, format a SD card as FAT32 (no Linux
-format partitions are needed) and copy the following files:
-
-3rdparty/bootloader/bootcode.bin
-3rdparty/bootloader/start.elf
-target/KERNEL (rename to kernel.img)
-target/SYSTEM
-
-
-In addition, you should add a config.txt file including your MPEG-2
-license key (if required) and any other settings, plus a cmdline.txt
-file containing the following line:
-
-boot=/dev/mmcblk0p1 ssh quiet
-
-(if you don't want to enable the ssh server, remove "ssh" from the
-above line)
-
 
 
 Bugs
