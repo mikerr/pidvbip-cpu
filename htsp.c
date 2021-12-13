@@ -419,6 +419,76 @@ int htsp_login(struct htsp_t* htsp)
   return 0;
 }
 
+int htsp_login(struct htsp_t* htsp, int server, char* tvh_user, char* tvh_pass)
+{
+  struct htsp_message_t msg;
+  int res;
+  HTSSHA1 *shactx = (HTSSHA1*)malloc(hts_sha1_size);
+  uint8_t d[20];
+  unsigned char* chall;
+  int chall_len = 0,res_access = 0;
+
+  htsp_create_message(&msg,HMF_STR,"method","hello",
+                           HMF_STR,"clientname","pidvbip",
+                           HMF_S64,"htspversion",1,
+                           HMF_S64,"seq",1,
+                           HMF_NULL);
+
+  //fprintf(stderr,"Sending hello message - %d bytes\n",msg.msglen);
+
+  if ((res = htsp_send_message(htsp,server,&msg)) > 0) {
+    fprintf(stderr,"Could not send message\n");
+    return 1;
+  }
+
+  htsp_destroy_message(&msg);
+
+  res = htsp_recv_message(htsp,server,&msg,0);
+
+  if (res > 0) {
+    fprintf(stderr,"Error receiving hello response\n");
+    return 1;
+  } else {
+    htsp_get_string(&msg, "method");
+    htsp_get_bin(&msg, "challenge", &chall, &chall_len);
+  }
+
+  htsp_destroy_message(&msg);
+
+  if ((tvh_user) && (tvh_pass)) {
+    // Now authenticate
+    fprintf(stderr,"Authenticating with user: %s pass: %s\n",tvh_user,tvh_pass);
+    hts_sha1_init(shactx);
+    hts_sha1_update(shactx, (const uint8_t *)tvh_pass, strlen(tvh_pass));
+    hts_sha1_update(shactx, (const uint8_t *)chall, chall_len);
+    hts_sha1_final(shactx, d);
+    htsp_create_message(&msg,HMF_STR,"method","authenticate",
+                             HMF_STR,"username",tvh_user,
+                             HMF_BIN,"digest",20,d,
+                             HMF_NULL);
+    if ((res = htsp_send_message(htsp,server,&msg)) > 0) {
+      fprintf(stderr,"Could not send message (authenticate)\n");
+      return 1;
+    };
+    htsp_destroy_message(&msg);
+
+    res = htsp_recv_message(htsp,server,&msg,0);
+    if (res > 0) {
+      fprintf(stderr,"Error receiving login response\n");
+      return 1;
+    } else {
+      htsp_get_int(&msg, "noaccess",&res_access);
+      fprintf(stderr,"Received htsp (login): %d - noaccess %d\n",res,res_access);
+      if (res_access == 1) {
+        fprintf(stderr,"Login FAILURE - No access with username and password\n");
+        return 1;
+      };
+    };
+    htsp_destroy_message(&msg);
+  }
+  return 0;
+}
+
 char* htsp_get_string(struct htsp_message_t* msg, char* name)
 {
   unsigned char* buf = msg->msg;
