@@ -3,8 +3,20 @@ pidvbip
 
 DVB-over-IP set-top box software for the Raspberry Pi.
 
-It requires Tvheadend running on a server (can be same pi)
+It requires Tvheadend running on a server (or on same pi)
 
+https://github.com/tvheadend/
+
+GPU memory should be a minimum of 128MB in config.txt
+
+    gpu_mem=128
+
+Screenshots
+-----------
+
+![](http://i.imgur.com/REHGLaBm.jpg "Info display")
+
+![](http://i.imgur.com/Upa7Jahm.jpg "Channel Display")
 
 Building
 --------
