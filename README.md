@@ -3,7 +3,7 @@ pidvbip
 
 DVB-over-IP set-top box software for the Raspberry Pi.
 
-It requires Tvheadend running on a server
+It requires Tvheadend running on a server (can be same pi)
 
 
 Building
@@ -15,14 +15,14 @@ pidvbip requires the following dependencies:
 
 libmpg123-dev libfaad-dev liba52-dev libavahi-client-dev libfreetype6-dev
 
+gpu_mem=128 in config.txt
+
 MPEG-2 decoding
 ---------------
 
 pidvbip will detect whether the MPEG-2 hardware codec is enabled, and
 fall back to software decoding otherwise.  Software MPEG-2 only works
-for relatively low bitrate SD streams - it is recommended to overclock
-your Pi as high as possible if you want to use software decoding.
-
+well on higher powered pi (pi3/4).
 
 Usage
 -----
