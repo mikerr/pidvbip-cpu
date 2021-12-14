@@ -330,43 +330,48 @@ void* htsp_receiver_thread(struct codecs_t* codecs)
   return 0;
 }
 
-int read_config(char* configfile,char** host, int* port)
+int read_config(char* configfile,struct htsp_t *htsp)
 {
-  int fd = -1;
-  int res;
-  char buf[1024];
+  FILE* fp = NULL;
+  char *line = NULL;
+  size_t len = 0;
+  ssize_t read;
 
   if (configfile)
-    fd = open(configfile,O_RDONLY);
+    fp = fopen(configfile,"r");
 
-  if (fd < 0)
-    fd = open("/boot/pidvbip.txt",O_RDONLY);  /* FAT partition in Raspbian */
+  if (fp == NULL)
+    fp = fopen("/boot/pidvbip.txt","r");  /* FAT partition in Raspbian */
 
-  if (fd < 0)
-    fd = open("/flash/pidvbip.txt",O_RDONLY); /* FAT partition in OpenELEC */
+  if (fp == NULL)
+    fp = fopen("/flash/pidvbip.txt","r"); /* FAT partition in OpenELEC */
 
-  if (fd < 0) {
+  if (fp == NULL){
     fprintf(stderr,"Could not open config file\n");
     return -1;
   }
 
-  res = read(fd, buf, sizeof(buf)-1);
-  buf[1023] = 0;
-  close(fd);
-
-  if (res < 0) {
+  if (fp == NULL){
     fprintf(stderr,"Error reading from config file\n");
     return -1;
   }
 
-  *host = malloc(1024);
-  res = sscanf(buf,"%s %d",*host,port);
+  read = getline(&line, &len, fp);
 
-  if (res != 2) {
-    fprintf(stderr,"Error parsing config file\n");
-    return -1;
+  if (read != -1) {
+  	htsp->host = malloc(1024);
+  	int res = sscanf(line,"%s %d",htsp->host,&htsp->port);
+        fprintf(stderr,"read %s %d",htsp->host,htsp->port);
   }
 
+  read = getline(&line, &len, fp);
+  if (read != -1) {
+  	htsp->user = malloc(1024);
+  	htsp->password = malloc(1024);
+  	int res = sscanf(line,"%s %s",htsp->user,htsp->password);
+        fprintf(stderr,"read %s %s",htsp->user,htsp->password);
+  }
+  fclose(fp);
   return 0;
 }
 
@@ -476,16 +481,20 @@ int main(int argc, char* argv[])
     htsp.host = NULL;
     htsp.ip = NULL;
 
+    htsp.user = NULL;
+    htsp.password = NULL;
+
     if (argc == 1) {
       /* No arguments, try avahi discovery */
-      avahi_discover_tvh(&htsp);
+      //avahi_discover_tvh(&htsp);
 
       if (htsp.host == NULL) {
         /* No avahi, try to read default config from /boot/config.txt */
-        if (read_config(NULL,&htsp.host,&htsp.port) < 0) {
+        if (read_config(NULL,&htsp) < 0) {
           fprintf(stderr,"ERROR: Could not read from config file\n");
-          fprintf(stderr,"Create config.txt in /boot/pidvbip.txt containing one line with the\n");
+          fprintf(stderr,"Create config.txt in /boot/pidvbip.txt containing lines \n");
           fprintf(stderr,"host and port of the server separated by a space.\n");
+          fprintf(stderr,"username and password separated by a space.\n");
           exit(1);
         }
       }

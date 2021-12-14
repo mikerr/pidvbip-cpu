@@ -29,8 +29,15 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include "sha1.h"
 #include "htsp.h"
 #include "debug.h"
+
+typedef struct HTSSHA1 {
+	uint64_t count;
+	uint8_t buffer[64];
+	uint32_t state[5];
+} HTSSHA1;
 
 void htsp_init(struct htsp_t* htsp)
 {
@@ -387,7 +394,7 @@ int htsp_recv_message(struct htsp_t* htsp, struct htsp_message_t* msg, int timeo
   return 0;
 }
 
-int htsp_login(struct htsp_t* htsp)
+int htsp_login_old(struct htsp_t* htsp)
 {
   struct htsp_message_t msg;
   int res;
@@ -419,7 +426,7 @@ int htsp_login(struct htsp_t* htsp)
   return 0;
 }
 
-int htsp_login(struct htsp_t* htsp, int server, char* tvh_user, char* tvh_pass)
+int htsp_login(struct htsp_t* htsp) //, int server, char* tvh_user, char* tvh_pass)
 {
   struct htsp_message_t msg;
   int res;
@@ -436,14 +443,14 @@ int htsp_login(struct htsp_t* htsp, int server, char* tvh_user, char* tvh_pass)
 
   //fprintf(stderr,"Sending hello message - %d bytes\n",msg.msglen);
 
-  if ((res = htsp_send_message(htsp,server,&msg)) > 0) {
+  if ((res = htsp_send_message(htsp,&msg)) > 0) {
     fprintf(stderr,"Could not send message\n");
     return 1;
   }
 
   htsp_destroy_message(&msg);
 
-  res = htsp_recv_message(htsp,server,&msg,0);
+  res = htsp_recv_message(htsp,&msg,0);
 
   if (res > 0) {
     fprintf(stderr,"Error receiving hello response\n");
@@ -455,6 +462,8 @@ int htsp_login(struct htsp_t* htsp, int server, char* tvh_user, char* tvh_pass)
 
   htsp_destroy_message(&msg);
 
+  char *tvh_user = htsp->user;
+  char *tvh_pass = htsp->password;
   if ((tvh_user) && (tvh_pass)) {
     // Now authenticate
     fprintf(stderr,"Authenticating with user: %s pass: %s\n",tvh_user,tvh_pass);
@@ -466,13 +475,13 @@ int htsp_login(struct htsp_t* htsp, int server, char* tvh_user, char* tvh_pass)
                              HMF_STR,"username",tvh_user,
                              HMF_BIN,"digest",20,d,
                              HMF_NULL);
-    if ((res = htsp_send_message(htsp,server,&msg)) > 0) {
+    if ((res = htsp_send_message(htsp,&msg)) > 0) {
       fprintf(stderr,"Could not send message (authenticate)\n");
       return 1;
     };
     htsp_destroy_message(&msg);
 
-    res = htsp_recv_message(htsp,server,&msg,0);
+    res = htsp_recv_message(htsp,&msg,0);
     if (res > 0) {
       fprintf(stderr,"Error receiving login response\n");
       return 1;

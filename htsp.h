@@ -11,6 +11,8 @@ struct htsp_t
     char* ip;
     char* host;
     int port;
+    char* user;
+    char* password;
     unsigned char challange[32];
     int subscriptionId;
     pthread_mutex_t htsp_mutex;
