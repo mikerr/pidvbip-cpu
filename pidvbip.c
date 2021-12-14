@@ -46,6 +46,7 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "osd.h"
 #include "avahi.h"
 #include "cec.h"
+#include "snapshot.h"
 
 struct codecs_t {
   struct codec_t vcodec; // Video
@@ -360,16 +361,14 @@ int read_config(char* configfile,struct htsp_t *htsp)
 
   if (read != -1) {
   	htsp->host = malloc(1024);
-  	int res = sscanf(line,"%s %d",htsp->host,&htsp->port);
-        fprintf(stderr,"read %s %d",htsp->host,htsp->port);
+  	sscanf(line,"%s %d",htsp->host,&htsp->port);
   }
 
   read = getline(&line, &len, fp);
   if (read != -1) {
   	htsp->user = malloc(1024);
   	htsp->password = malloc(1024);
-  	int res = sscanf(line,"%s %s",htsp->user,htsp->password);
-        fprintf(stderr,"read %s %s",htsp->user,htsp->password);
+  	sscanf(line,"%s %s",htsp->user,htsp->password);
   }
   fclose(fp);
   return 0;
@@ -800,6 +799,8 @@ next_channel:
             htsp_send_skip(&htsp,30);     // +30 seconds
             break;
 
+	  case 's':
+	    save_snapshot();
             break;
 
           default:
