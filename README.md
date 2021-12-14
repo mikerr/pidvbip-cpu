@@ -27,7 +27,6 @@ pidvbip requires the following dependencies:
 
 libmpg123-dev libfaad-dev liba52-dev libavahi-client-dev libfreetype6-dev
 
-gpu_mem=128 in config.txt
 
 MPEG-2 decoding
 ---------------
