@@ -168,7 +168,7 @@ static void do_pause(struct codecs_t* codecs, int pause)
       /* Currently playing, pause */
       fprintf(stderr,"[PAUSE]\n");
       codec_pause(&codecs->acodec);
-      codec_pause(&codecs->vcodec);
+      //codec_pause(&codecs->vcodec);
       codecs->is_paused = 1;
     }
   } else {
