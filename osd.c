@@ -21,6 +21,9 @@
 #define OSD_XMARGIN 32
 #define OSD_YMARGIN 18
 
+#define SCREENWIDTH 1280
+#define SCREENHEIGHT 800
+
 int32_t render_paragraph(GRAPHICS_RESOURCE_HANDLE img, const char *text, const uint32_t text_size, const uint32_t x_offset, const uint32_t y_offset)
 {
    uint32_t text_length;
@@ -28,7 +31,7 @@ int32_t render_paragraph(GRAPHICS_RESOURCE_HANDLE img, const char *text, const u
    uint32_t width=0, height=0;
    const char *split = text;
    int32_t s=0;
-   uint32_t img_w = 1400;;
+   uint32_t img_w = SCREENWIDTH - 420;
 
    if ((!text) || ((text_length=strlen(text))==0))
       return 0;
@@ -197,10 +200,10 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
   struct tm start_time;
   struct tm stop_time;
   int duration;
-  int width = 1920-2*OSD_XMARGIN;
+  int width = SCREENWIDTH-2*OSD_XMARGIN;
   int height = 380-OSD_YMARGIN;
 
-  osd_draw_window(osd,OSD_XMARGIN,700,width,height);
+  osd_draw_window(osd,OSD_XMARGIN,SCREENHEIGHT-height,width,height);
 
   if (event==NULL)
     return;
@@ -210,7 +213,7 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
   duration = event->stop - event->start;
 
   snprintf(str,sizeof(str),"%02d:%02d - %02d:%02d",start_time.tm_hour,start_time.tm_min,stop_time.tm_hour,stop_time.tm_min);
-  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, 720,
+  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, SCREENHEIGHT-height+20,
                                      width,
                                      height,
                                      GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
@@ -218,7 +221,7 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
 				     str, strlen(str), 40);
 
 
-  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+350, 720,
+  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+350, SCREENHEIGHT-height+20,
                                      width,
                                      height,
                                      GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
@@ -227,7 +230,7 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
 
 
   snprintf(str,sizeof(str),"%dh %02dm",duration/3600,(duration%3600)/60);
-  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, 800,
+  s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, SCREENHEIGHT-height+100,
                                      width,
                                      height,
                                      GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
@@ -235,13 +238,8 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
 				     str, strlen(str), 30);
 
 
-  render_paragraph(osd->img, event->description,30,OSD_XMARGIN+350,800);
+  render_paragraph(osd->img, event->description,30,OSD_XMARGIN+350,SCREENHEIGHT-height+100);
 
-  //fprintf(stderr,"Title:       %s\n",event->title);
-  //fprintf(stderr,"Start:       %04d-%02d-%02d %02d:%02d:%02d\n",start_time.tm_year+1900,start_time.tm_mon+1,start_time.tm_mday,start_time.tm_hour,start_time.tm_min,start_time.tm_sec);
-  //fprintf(stderr,"Stop:        %04d-%02d-%02d %02d:%02d:%02d\n",stop_time.tm_year+1900,stop_time.tm_mon+1,stop_time.tm_mday,stop_time.tm_hour,stop_time.tm_min,stop_time.tm_sec);
-  //fprintf(stderr,"Duration:    %02d:%02d:%02d\n",
-  //fprintf(stderr,"Description: %s\n",event->description);
 }
 
 static void osd_show_time(struct osd_t* osd)
@@ -253,14 +251,14 @@ static void osd_show_time(struct osd_t* osd)
   int width = 188;
   int height = 80;
 
-  osd_draw_window(osd,1700,18,width,height);
+  osd_draw_window(osd,SCREENWIDTH - width,18,width,height);
 
   now = time(NULL);
   localtime_r(&now,&now_tm);
 
   snprintf(str,sizeof(str),"%02d:%02d",now_tm.tm_hour,now_tm.tm_min);
 
-  s = graphics_resource_render_text_ext(osd->img, 1730, OSD_YMARGIN+25,
+  s = graphics_resource_render_text_ext(osd->img, SCREENWIDTH - width + 20, OSD_YMARGIN+25,
                                      width,
                                      height,
                                      GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
