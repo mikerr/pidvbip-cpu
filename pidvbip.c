@@ -645,9 +645,6 @@ next_channel:
 
     fprintf(stderr,"Tuning to channel %d - \"%s\"\n",channels_getlcn(user_channel_id),channels_getname(user_channel_id));
 
-    osd_show_info(&osd,user_channel_id);
-    osd_cleartime = get_time() + 5000;
-
     fprintf(stderr,"Waiting for lock\n");
     htsp_lock(&htsp);
     fprintf(stderr,"locked\n");
@@ -662,6 +659,9 @@ next_channel:
 
     htsp_destroy_message(&msg);
     fprintf(stderr,"HERE - subscribe message sent\n");
+
+    osd_show_info(&osd,user_channel_id);
+    osd_cleartime = get_time() + 5000;
 
     /* UI loop */
 
@@ -735,14 +735,11 @@ next_channel:
 
           case 'i':
             if (osd_cleartime) {
-              /* Hide info if currently shown */
               osd_clear(&osd);
               osd_cleartime = 0;
-	    } else {
-              osd_show_info(&osd,user_channel_id);
-              osd_cleartime = get_time() + 20000; /* 20 second timeout */
             }
-
+    	    osd_show_info(&osd,user_channel_id);
+    	    osd_cleartime = get_time() + 5000;
             break;
 
           case 'c':

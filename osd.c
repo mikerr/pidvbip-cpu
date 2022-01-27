@@ -242,7 +242,7 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
 
 }
 
-static void osd_show_time(struct osd_t* osd)
+void osd_show_time(struct osd_t* osd)
 {
   struct tm now_tm;
   time_t now;
