@@ -87,7 +87,7 @@ void process_message(char* method,struct htsp_message_t* msg,char* debugtext)
     uint32_t eventId;
     if (htsp_get_uint(msg,"eventId",&eventId)==0) {
       //fprintf(stderr,"eventDelete: %d\n",eventId);
-      event_delete(eventId);
+      event_delete(eventId,0);//server?
     } else {
       fprintf(stderr,"Warning eventDelete event not found (%d)\n",eventId);
     }
@@ -386,7 +386,7 @@ static int get_actual_channel(int auto_hdtv, int user_channel_id)
 
   if ((auto_hdtv) && (channels_gettype(user_channel_id)==CTYPE_SDTV)) {
     uint32_t current_eventId = channels_geteventid(user_channel_id);
-    int hd_channel = event_find_hd_version(current_eventId);
+    int hd_channel = event_find_hd_version(current_eventId,0);//server
     if (hd_channel >= 0) {
       fprintf(stderr,"Auto-switching to channel %d (%s)\n",channels_getlcn(hd_channel),channels_getname(hd_channel));
       actual_channel_id = hd_channel;
@@ -645,7 +645,7 @@ next_channel:
 
     fprintf(stderr,"Tuning to channel %d - \"%s\"\n",channels_getlcn(user_channel_id),channels_getname(user_channel_id));
 
-    osd_show_info(&osd,user_channel_id);
+    osd_show_info(&osd,user_channel_id,7000); // 7 second timeout
     osd_cleartime = get_time() + 5000;
 
     fprintf(stderr,"Waiting for lock\n");
@@ -739,7 +739,7 @@ next_channel:
               osd_clear(&osd);
               osd_cleartime = 0;
 	    } else {
-              osd_show_info(&osd,user_channel_id);
+              osd_show_info(&osd,user_channel_id,20000);
               osd_cleartime = get_time() + 20000; /* 20 second timeout */
             }
 

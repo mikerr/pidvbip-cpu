@@ -52,7 +52,7 @@ static struct event_t* event_get_nolock(uint32_t eventId)
 #endif
 }
 
-struct event_t* event_get(uint32_t eventId)
+struct event_t* event_get(uint32_t eventId, int server)
 {
   pthread_mutex_lock(&events_mutex);
   struct event_t* event = event_get_nolock(eventId);
@@ -159,7 +159,7 @@ void process_event_message(char* method, struct htsp_message_t* msg)
   pthread_mutex_unlock(&events_mutex);
 }
 
-void event_delete(uint32_t eventId)
+void event_delete(uint32_t eventId, int server)
 {
   pthread_mutex_lock(&events_mutex);
 #ifdef USE_AVL
@@ -184,7 +184,7 @@ void event_delete(uint32_t eventId)
   pthread_mutex_unlock(&events_mutex);
 }
 
-struct event_t* event_copy(uint32_t eventId)
+struct event_t* event_copy(uint32_t eventId, int server)
 {
   struct event_t* event;
   struct event_t* copy;
@@ -268,7 +268,7 @@ static int find_hd_version(struct avl* a,struct event_t* sd_event){
 }
 #endif
 
-int event_find_hd_version(int eventId)
+int event_find_hd_version(int eventId,int server)
 {
   pthread_mutex_lock(&events_mutex);
 

@@ -114,7 +114,7 @@ void channels_dump(void)
     while (i--)
       fprintf(stderr," ");
 
-    struct event_t* event = event_copy(p->eventId);
+    struct event_t* event = event_copy(p->eventId,0);//server
     if (event) { 
       fprintf(stderr,"%s\n",event->title);
       event_free(event);
@@ -298,6 +298,11 @@ int channels_getfirst(void)
 {
   channels_cache = channels;
   return channels->id;
+}
+
+int channels_getlast(void)
+{
+  return channels_getprev( channels_getfirst() );
 }
 
 int channels_getcount(void)
