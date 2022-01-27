@@ -269,7 +269,6 @@ void osd_show_time(struct osd_t* osd)
 void osd_show_info(struct osd_t* osd, int channel_id)
 {
   char str[128];
-
   struct event_t* event = event_copy(channels_geteventid(channel_id));
 
   event_dump(event);
@@ -277,10 +276,9 @@ void osd_show_info(struct osd_t* osd, int channel_id)
   snprintf(str,sizeof(str),"%03d - %s",channels_getlcn(channel_id),channels_getname(channel_id));
 
   pthread_mutex_lock(&osd->osd_mutex);
+
   osd_show_channelname(osd,str);
-
   osd_show_time(osd);
-
   osd_show_eventinfo(osd,event);
 
   graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
@@ -289,6 +287,36 @@ void osd_show_info(struct osd_t* osd, int channel_id)
   event_free(event);
 }
 
+void osd_list_channels(struct osd_t *osd){
+  int s;
+  int width = SCREENWIDTH-2*OSD_XMARGIN;
+  int height = 380-OSD_YMARGIN;
+  char str[120];
+  int numchannels = channels_getcount();
+  int id = channels_getfirst();
+
+  pthread_mutex_lock(&osd->osd_mutex);
+
+  osd_draw_window(osd,OSD_XMARGIN,SCREENHEIGHT-height,width,height);
+  for (int i=0; i < 10; i++) {
+	struct event_t *event = event_copy(channels_geteventid(id));
+	sprintf(str,"%d %s %s",channels_getlcn(id),channels_getname(id),event->title);
+	printf("%s \n",str);
+
+	s = graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, OSD_YMARGIN + i*60,
+                                     width,
+                                     height,
+                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
+                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
+				     str, strlen(str), 40);
+  	event_free(event);
+	id = channels_getnext(id);
+	}
+
+  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+
+  pthread_mutex_unlock(&osd->osd_mutex);
+}
 void osd_show_newchannel(struct osd_t* osd, int channel)
 {
   char str[128];

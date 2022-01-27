@@ -743,7 +743,8 @@ next_channel:
             break;
 
           case 'c':
-            channels_dump();
+            //channels_dump();
+	    osd_list_channels(&osd);
             break;
 
           case 'h':
