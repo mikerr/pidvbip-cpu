@@ -67,7 +67,9 @@ Once running, the following keys are mapped to actions:
     'i' - show/hide current event information
     'h' - toggle auto-switching to HD versions of programmes from an SD channel
     ' ' - pause/resume playback
-    'c' - display list of channels and current events to the console
+    'c' - display list of channels and current events to the console        
+        - Also shows basic onscreen channel listing, whilst onscreen use
+        - d for down a screen of channels, or u for up a screen of channels in listing
     's' - Take a screenshot (filename is ~/pidvbip-NNNNNNNNNNN.ppm)
 
 pidvbip currently supports hardware decoding of H264 and MPEG-2 video
