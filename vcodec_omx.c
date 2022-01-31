@@ -98,7 +98,7 @@ next_packet:
      unsigned char* p = current->data->packet;
      //fprintf(stderr,"Processing video packet - %d bytes\n",bytes_left);
      while (bytes_left > 0) {
-       fprintf(stderr,"OMX buffers: %02d/20 free, vcodec queue: %4d, acodec queue: %4d\r",omx_get_free_buffer_count(&pipe,pipe.video_buffers),codec->queue_count, codec->acodec->queue_count);
+       //fprintf(stderr,"OMX buffers: %02d/20 free, vcodec queue: %4d, acodec queue: %4d\r",omx_get_free_buffer_count(&pipe,pipe.video_buffers),codec->queue_count, codec->acodec->queue_count);
        buf = get_next_buffer(&pipe);   /* This will block if there are no empty buffers */
 
        int to_copy = OMX_MIN(bytes_left,buf->nAllocLen);

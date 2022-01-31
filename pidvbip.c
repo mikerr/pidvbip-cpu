@@ -47,6 +47,7 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "avahi.h"
 #include "cec.h"
 #include "snapshot.h"
+#include "utils.h"
 
 struct codecs_t {
   struct codec_t vcodec; // Video
@@ -396,19 +397,6 @@ static int get_actual_channel(int auto_hdtv, int user_channel_id)
   return actual_channel_id;
 }
 
-double get_time(void)
-{
-  struct timeval tv;
-
-  gettimeofday(&tv,NULL);
-
-  double x = tv.tv_sec;
-  x *= 1000;
-  x += tv.tv_usec / 1000;
-
-  return x;
-}
-
 #define KEY_RELEASE 0
 #define KEY_PRESS 1
 #define KEY_KEEPING_PRESSED 2
@@ -660,8 +648,7 @@ next_channel:
     htsp_destroy_message(&msg);
     fprintf(stderr,"HERE - subscribe message sent\n");
 
-    osd_show_info(&osd,user_channel_id);
-    osd_cleartime = get_time() + 5000;
+    osd_show_info(&osd,user_channel_id,9000);
 
     /* UI loop */
 
@@ -699,6 +686,8 @@ next_channel:
       }
 #endif
 
+      osd_process_key(&osd,c);
+
       if (c != -1) {
         DEBUGF("char read: 0x%08x ('%c')\n", c,(isalnum(c) ? c : ' '));
 
@@ -734,17 +723,43 @@ next_channel:
             goto done;
 
           case 'i':
-            if (osd_cleartime) {
-              osd_clear(&osd);
-              osd_cleartime = 0;
-            }
-    	    osd_show_info(&osd,user_channel_id);
-    	    osd_cleartime = get_time() + 5000;
+    	    osd_show_info(&osd,user_channel_id,3000);
             break;
 
           case 'c':
             //channels_dump();
-	    osd_list_channels(&osd);
+	    //osd_list_channels(&osd);
+	    osd_cleartime = 1000;
+  	    if (osd.osd_state == OSD_CHANNELLIST) {
+              osd_clear(&osd);    
+              //int tmp = user_channel_id;
+              user_channel_id = osd.channellist_selected_channel;  
+              int new_actual_channel_id = get_actual_channel(auto_hdtv, user_channel_id);
+              if (new_actual_channel_id != actual_channel_id) {
+                //prev_user_channel_id = tmp;
+                actual_channel_id = new_actual_channel_id;
+                //msgqueue_add(&htsp.msgqueue, HTMSG_NEW_CHANNEL | actual_channel_id);
+                osd_show_info(&osd, user_channel_id,1000); /* 7 second timeout */
+              }
+            } else {
+              if (osd.osd_state != OSD_NONE) {
+                osd_clear(&osd); 
+              }
+          
+              osd.channellist_selected_channel = user_channel_id;
+              osd.channellist_start_channel = user_channel_id;
+              static int i = 0;
+              int channel_tmp;
+              for (channel_tmp = channels_getfirst(); channel_tmp != user_channel_id; channel_tmp = channels_getnext(channel_tmp) )
+              {                
+                if (i % 12 == 0) osd.channellist_start_channel = channel_tmp;
+                i++;
+              }                
+              
+              osd.channellist_selected_pos = 0;
+              osd_channellist_display(&osd);
+            }                 
+
             break;
 
           case 'h':
@@ -776,7 +791,7 @@ next_channel:
             actual_channel_id = get_actual_channel(auto_hdtv,user_channel_id);
 
             goto next_channel;
-
+/*
           case 'u':
             do_pause(&codecs,1);
             htsp_send_skip(&htsp,10*60);  // +10 minutes
@@ -796,7 +811,7 @@ next_channel:
             do_pause(&codecs,1);
             htsp_send_skip(&htsp,30);     // +30 seconds
             break;
-
+*/
 	  case 's':
 	    save_snapshot();
             break;
@@ -806,10 +821,7 @@ next_channel:
         }
       }
 
-      if ((osd_cleartime) && (get_time() > osd_cleartime)) {
-        osd_clear(&osd);
-        osd_cleartime = 0;
-      }
+      osd_update(&osd,user_channel_id);
 
       if ((blank_video_timeout) && (get_time() > blank_video_timeout)) {
         osd_blank_video(&osd,0);
