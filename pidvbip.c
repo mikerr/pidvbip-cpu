@@ -723,13 +723,13 @@ next_channel:
             goto done;
 
           case 'i':
-    	    osd_show_info(&osd,user_channel_id,3000);
+	    if (osd.osd_state == OSD_INFO) 
+		    osd_clear(&osd);
+	    else 
+		    osd_show_info(&osd,user_channel_id,3000);
             break;
 
           case 'c':
-            //channels_dump();
-	    //osd_list_channels(&osd);
-	    osd_cleartime = 1000;
   	    if (osd.osd_state == OSD_CHANNELLIST) {
               osd_clear(&osd);    
               //int tmp = user_channel_id;
@@ -741,11 +741,8 @@ next_channel:
                 //msgqueue_add(&htsp.msgqueue, HTMSG_NEW_CHANNEL | actual_channel_id);
                 osd_show_info(&osd, user_channel_id,1000); /* 7 second timeout */
               }
-            } else {
-              if (osd.osd_state != OSD_NONE) {
-                osd_clear(&osd); 
-              }
-          
+	      } else { 
+              osd_clear(&osd);    
               osd.channellist_selected_channel = user_channel_id;
               osd.channellist_start_channel = user_channel_id;
               static int i = 0;
