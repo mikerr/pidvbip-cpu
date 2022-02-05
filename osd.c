@@ -399,6 +399,48 @@ void osd_clear(struct osd_t* osd)
   osd->osd_cleartime = 0;
 }
 
+void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y, uint32_t color) {
+  char str[128];
+  time_t now;
+  char* iso_text;
+  
+  osd->event = channels_geteventid(channel_id);
+  osd->nextEvent = channels_getnexteventid(channel_id);
+
+  struct event_t* event = event_copy(osd->event);
+  struct event_t* nextEvent = event_copy(osd->nextEvent);
+
+  if (event == NULL) return;
+
+  if (event->title) {
+    iso_text = malloc(strlen(event->title)+1);
+    utf8decode(event->title, iso_text);
+  }
+  
+  now = time(NULL);
+  int width = (event->stop - now) / 5;
+  if (width < 400) width = 400;
+  snprintf(str, sizeof(str),"%s",iso_text);
+  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, y, width, 50,
+                                     color,
+                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
+                                     str, strlen(str), 40);
+  free(iso_text);
+
+  if (nextEvent->title) {
+    iso_text = malloc(strlen(nextEvent->title)+1);
+    utf8decode(nextEvent->title, iso_text);
+  }
+  snprintf(str, sizeof(str),"%s",iso_text);
+  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + width + 90, y, 1000, 50,
+                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* bg */
+                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
+                                     str, strlen(str), 40);
+  free(iso_text);
+  event_free(event);
+  event_free(nextEvent);
+}
+
 void osd_channellist_show_epg(struct osd_t* osd, int channel_id)
 {
   char str[128];
@@ -495,23 +537,16 @@ void osd_channellist_update_channels(struct osd_t* osd, int direction)
                                           iso_text, strlen(iso_text), 40);
   free(iso_text);
   
+  osd_channellist_show_epg_line(osd, id, y, COLOR_TEXT);                                                                                      
+
   if (direction == CHANNELLIST_DOWN) {
     osd->channellist_selected_pos++;
     y += 50;
-    id = osd->channellist_selected_channel;
-    snprintf(str, sizeof(str), "%d %s", channels_getlcn(id), channels_getname(id)); 
-    iso_text = malloc(strlen(str) + 1);
-    utf8decode(str, iso_text);        
-    (void)graphics_resource_render_text_ext(osd->img, x, y, width, height,
-                                            COLOR_SELECTED_TEXT, /* fg */
-                                            COLOR_SELECTED_BACKGROUND,    /* bg */
-                                            iso_text, strlen(iso_text), 40);
-    //graphics_update_displayed_resource(osd->img, x, y - 50, width, 100);                                        
-    free(iso_text);
   }
   else {
     osd->channellist_selected_pos--;
     y -= 50;
+  }
     id = osd->channellist_selected_channel;
     snprintf(str, sizeof(str), "%d %s", channels_getlcn(id), channels_getname(id)); 
     iso_text = malloc(strlen(str) + 1);
@@ -522,9 +557,9 @@ void osd_channellist_update_channels(struct osd_t* osd, int direction)
                                             iso_text, strlen(iso_text), 40);  
     //graphics_update_displayed_resource(osd->img, x, y, width, 100);                                         
     free(iso_text);                                        
-  }                                            
   
-  osd_channellist_show_epg(osd, id);                                                                                      
+    osd_channellist_show_epg_line(osd, id, y, COLOR_SELECTED_TEXT);                                                                                      
+  //osd_channellist_show_epg(osd, id);                                                                                      
   graphics_update_displayed_resource(osd->img, 0, 0, SCREENWIDTH,SCREENHEIGHT);                                        
 }
 
@@ -576,6 +611,8 @@ void osd_channellist_display_channels(struct osd_t* osd)
                                             iso_text, strlen(iso_text), 40);
                                             
       //fprintf(stderr, "%d %s %d\n", id, str, selected);  
+      osd_channellist_show_epg_line(osd, id, y, color);
+
       y += 50;
       free(iso_text);     
       id = channels_getnext(id);   
@@ -585,8 +622,10 @@ void osd_channellist_display_channels(struct osd_t* osd)
         }  
         break;
       }
+
+
     }
-    osd_channellist_show_epg(osd, osd->channellist_selected_channel);    
+    //osd_channellist_show_epg(osd, osd->channellist_selected_channel);    
   }
   //fprintf(stderr, "\n"); 
 }
