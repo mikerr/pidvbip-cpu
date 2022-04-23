@@ -29,7 +29,7 @@ void vo_display_frame (RECT_VARS_T* vars, int width, int height,
   static VC_RECT_T       src_rect;
   static VC_RECT_T       dst_rect;
   static VC_DISPMANX_ALPHA_T alpha = { DISPMANX_FLAGS_ALPHA_FROM_SOURCE | DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS, 
-                                255, /*alpha 0->255*/
+                                155, /*alpha 0->255*/
 			        0 };
   int pitch = VO_ALIGN_UP(width,32);
 
