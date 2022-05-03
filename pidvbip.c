@@ -496,6 +496,8 @@ int main(int argc, char* argv[])
     }
 
     fprintf(stderr,"Using host \"%s:%d\"\n",htsp.host,htsp.port);
+
+    osd_init(&osd);
     bcm_host_init();
 
 #ifdef ENABLE_CEC
@@ -515,11 +517,9 @@ int main(int argc, char* argv[])
       fprintf(stderr,"Using %s - %s\n", inputdevice, inputname);
 
       /* Disable auto-repeat (for now...) */
-      int ioctl_params[2] = { 0, 0 };
-      ioctl(inputfd,EVIOCSREP,ioctl_params);
+      //int ioctl_params[2] = { 0, 0 };
+      //ioctl(inputfd,EVIOCSREP,ioctl_params);
     }
-
-    osd_init(&osd);
 
     htsp_init(&htsp);
 
@@ -597,9 +597,9 @@ int main(int argc, char* argv[])
     memset(&codecs.acodec,0,sizeof(codecs.acodec));
     codecs.is_paused = 0;
 
+    double blank_video_timeout;
 next_channel:
-    osd_blank_video(&osd,0); /* Don't blank the screen for now - leave the transition visbible for debugging */
-    double blank_video_timeout = get_time() + 1000;
+    blank_video_timeout = get_time() + 8000;
 
     fprintf(stderr,"lock0\n");
     if (codecs.vcodec.thread) {
@@ -809,6 +809,8 @@ next_channel:
             htsp_send_skip(&htsp,30);     // +30 seconds
             break;
 */
+	  case 'z':
+	    break;
 	  case 's':
 	    save_snapshot();
             break;

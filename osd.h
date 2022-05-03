@@ -2,8 +2,6 @@
 #define _OSD_H
 
 #include <pthread.h>
-#include "libs/vgfont/vgfont.h"
-
 
 /* The various OSD screens */
 #define OSD_NONE 0
@@ -13,8 +11,8 @@
 
 
 struct osd_t {
-  GRAPHICS_RESOURCE_HANDLE img_blank;
-  GRAPHICS_RESOURCE_HANDLE img;
+  int img;
+  int img_blank;
   int display_width;
   int display_height;
   pthread_mutex_t osd_mutex;

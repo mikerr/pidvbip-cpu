@@ -7,8 +7,6 @@
 #include <time.h>
 
 #include <bcm_host.h>
-#include "libs/vgfont/vgfont.h"
-#include "tiresias_pcfont.h"
 #include "osd.h"
 #include "channels.h"
 #include "events.h"
@@ -34,9 +32,181 @@
 #define CHANNELLIST_UP 1
 #define CHANNELLIST_DOWN 2
 
+#define GRAPHICS_RESOURCE_HANDLE int
+#define GRAPHICS_RESOURCE_WIDTH 640
+#define GRAPHICS_RESOURCE_HEIGHT 480
+#define GRAPHICS_RESOURCE_RGBA32 0
+
+#include <FTGL/ftgl.h>
+
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include <gbm.h>
+#include <EGL/egl.h>
+#include <GL/gl.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+#define EXIT(msg) { fputs (msg, stderr); exit (EXIT_FAILURE); }
+
+// global variables declarations
+
+static int device;
+static drmModeRes *resources;
+static drmModeConnector *connector;
+static uint32_t connector_id;
+static drmModeEncoder *encoder;
+static drmModeModeInfo mode_info;
+static drmModeCrtc *crtc;
+static struct gbm_device *gbm_device;
+static EGLDisplay display;
+static EGLContext context;
+static struct gbm_surface *gbm_surface;
+static EGLSurface egl_surface;
+       EGLConfig config;
+       EGLint num_config;
+       EGLint count=0;
+       EGLConfig *configs;
+       int config_index;
+       int i;
+       
+static struct gbm_bo *previous_bo = NULL;
+static uint32_t previous_fb;       
+
+static EGLint attributes[] = {
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_RED_SIZE, 8,
+		EGL_GREEN_SIZE, 8,
+		EGL_BLUE_SIZE, 8,
+		EGL_ALPHA_SIZE, 0,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_NONE
+		};
+
+static const EGLint context_attribs[] = {
+		EGL_CONTEXT_CLIENT_VERSION, 2,
+		EGL_NONE
+	};
+
+struct gbm_bo *bo;	
+uint32_t handle;
+uint32_t pitch;
+uint32_t fb;
+uint64_t modifier;
+
+static void update_screen () {
+
+eglSwapBuffers (display, egl_surface);
+bo = gbm_surface_lock_front_buffer (gbm_surface);
+handle = gbm_bo_get_handle (bo).u32;
+pitch = gbm_bo_get_stride (bo);
+drmModeAddFB (device, mode_info.hdisplay, mode_info.vdisplay, 24, 32, pitch, handle, &fb);
+drmModeSetCrtc (device, crtc->crtc_id, fb, 0, 0, &connector_id, 1, &mode_info);
+if (previous_bo) {
+  drmModeRmFB (device, previous_fb);
+  gbm_surface_release_buffer (gbm_surface, previous_bo);
+  }
+previous_bo = bo;
+previous_fb = fb;
+}
+
+static drmModeConnector *find_connector (drmModeRes *resources) {
+
+for (i=0; i<resources->count_connectors; i++) {
+  drmModeConnector *connector = drmModeGetConnector (device, resources->connectors[i]);
+  if (connector->connection == DRM_MODE_CONNECTED) {return connector;}
+  drmModeFreeConnector (connector);
+  }
+return NULL; // if no connector found
+}
+
+static drmModeEncoder *find_encoder (drmModeRes *resources, drmModeConnector *connector) {
+
+if (connector->encoder_id) {return drmModeGetEncoder (device, connector->encoder_id);}
+return NULL; // if no encoder found
+}
+
+static int match_config_to_visual(EGLDisplay egl_display, EGLint visual_id, EGLConfig *configs, int count) {
+
+EGLint id;
+for (i = 0; i < count; ++i) {
+  if (!eglGetConfigAttrib(egl_display, configs[i], EGL_NATIVE_VISUAL_ID,&id)) continue;
+  if (id == visual_id) return i;
+  }
+return -1;
+}
+
+int drm_init () {
+
+device = open ("/dev/dri/card1", O_RDWR);
+resources = drmModeGetResources (device);
+connector = find_connector (resources);
+connector_id = connector->connector_id;
+mode_info = connector->modes[0];
+encoder = find_encoder (resources, connector);
+crtc = drmModeGetCrtc (device, encoder->crtc_id);
+drmModeFreeEncoder (encoder);
+drmModeFreeConnector (connector);
+drmModeFreeResources (resources);
+gbm_device = gbm_create_device (device);
+gbm_surface = gbm_surface_create (gbm_device, mode_info.hdisplay, mode_info.vdisplay, GBM_FORMAT_XRGB8888, GBM_BO_USE_SCANOUT|GBM_BO_USE_RENDERING);
+display = eglGetDisplay (gbm_device);
+eglInitialize (display, NULL ,NULL);
+eglBindAPI (EGL_OPENGL_API);
+eglGetConfigs(display, NULL, 0, &count);
+configs = malloc(count * sizeof *configs);
+eglChooseConfig (display, attributes, configs, count, &num_config);
+config_index = match_config_to_visual(display,GBM_FORMAT_XRGB8888,configs,num_config);
+context = eglCreateContext (display, configs[config_index], EGL_NO_CONTEXT, context_attribs);
+egl_surface = eglCreateWindowSurface (display, configs[config_index], gbm_surface, NULL);
+free(configs);
+eglMakeCurrent (display, egl_surface, egl_surface, context);
+
+return(1);
+}
+
+int drm_cleanup() {
+	
+drmModeSetCrtc (device, crtc->crtc_id, crtc->buffer_id, crtc->x, crtc->y, &connector_id, 1, &crtc->mode);
+drmModeFreeCrtc (crtc);
+if (previous_bo) {
+  drmModeRmFB (device, previous_fb);
+  gbm_surface_release_buffer (gbm_surface, previous_bo);
+  }
+eglDestroySurface (display, egl_surface);
+gbm_surface_destroy (gbm_surface);
+eglDestroyContext (display, context);
+eglTerminate (display);
+gbm_device_destroy (gbm_device);
+
+close (device);
+return 0;
+}
+
+FTGLfont *font;
+void setPos (int x,int y) {
+	float fx,fy;
+  
+	// normalize 0,0 to -1,-1
+	// normalize 200,200 to 1,1
+	
+  	fy = (200 - y) / 100.0f;
+  	fy--;
+
+  	fx = x / 100.0f;
+  	fx--;
+  	glRasterPos2f(fx,fy);
+}
+
+void printText(const char *text,int pointsize) {
+  ftglSetFontFaceSize(font, pointsize, pointsize);
+  ftglRenderFont(font, text, FTGL_RENDER_ALL);
+}
+
+int GRAPHICS_RGBA32 (int r,int g,int b,int a) { return 0; }
 static int CHANNELLIST_NUM_CHANNELS = 12;
-static int SCREENWIDTH = 1280;
-static int SCREENHEIGHT = 800;
 
 static void utf8decode(char* str, char* r)
 {
@@ -90,108 +260,19 @@ static void utf8decode(char* str, char* r)
   return;
 }
 
-int32_t render_paragraph(GRAPHICS_RESOURCE_HANDLE img, const char *text, const uint32_t text_size, const uint32_t x_offset, const uint32_t y_offset)
-{
-   uint32_t text_length;
-   uint32_t line_length;
-   uint32_t width=0, height=0;
-   const char *split = text;
-   int32_t s=0;
-   uint32_t img_w = SCREENWIDTH - 420;
-
-   if ((!text) || ((text_length=strlen(text))==0))
-      return 0;
-
-   //fprintf(stderr,"render_paragraph(\"%s\",%d)\n",text,text_length);
-
-   (void)graphics_resource_text_dimensions_ext(img, text, text_length, &width, &height, text_size);
-   if (s != 0) return s;
-
-   if (width <= img_w) {
-     /* We can display the whole line */
-     line_length = text_length;
-   } else {
-     //fprintf(stderr,"width=%d, img_w=%d, looking for next space\n",width,img_w);
-
-     const char* space = index(split,' ');
-
-     if (space) {
-       (void)graphics_resource_text_dimensions_ext(img, text, space-text, &width, &height, text_size);
-       if (s != 0) return s;
-     }
-
-     if ((space == NULL) || (width > img_w)) {
-       /* No spaces, within img_w. Just go through character by character */
-       line_length = 0;
-       do {
-         line_length++;
-         (void)graphics_resource_text_dimensions_ext(img, text, text_length, &width, &height, text_size);
-         if (s != 0) return s;
-       } while (width < img_w);
-
-       line_length--;
-     } else {
-       /* We have at least one space, so can split line on a space */
-       width = 0;
-       line_length = space - text;
-
-       while (width < img_w) {
-         space = index(space+1,' ');
-         (void)graphics_resource_text_dimensions_ext(img, text, space - text, &width, &height, text_size);
-         if (s != 0) return s;
-
-         if (width < img_w) { line_length = space - text; }
-       }
-     }
-   }
-
-   if (line_length) {
-     //int i;
-     //fprintf(stderr,"Rendering: ");
-     //for (i=0;i<line_length;i++) { fprintf(stderr,"%c",text[i]); }
-     //fprintf(stderr,"\n");
-
-     (void)graphics_resource_render_text_ext(img, x_offset, y_offset,
-                                     GRAPHICS_RESOURCE_WIDTH,
-                                     GRAPHICS_RESOURCE_HEIGHT,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     text, line_length, text_size);
-      if (s!=0) return s;
-   }
-   if (text[line_length]) {
-     return render_paragraph(img, text + line_length+1, text_size, x_offset, y_offset + height);
-   } else {
-     return 0;
-   }
-}
-
 void osd_init(struct osd_t* osd)
 {
-   uint32_t display_width, display_height;
+   drm_init();
 
-   (void)gx_graphics_init(tiresias_pcfont,sizeof(tiresias_pcfont));
-   (void)graphics_get_display_size(0, &display_width, &display_height);
-   osd->display_width = display_width;
-   osd->display_height = display_height;
+   /* Create a pixmap font from a TrueType file. */
+   font = ftglCreatePixmapFont("Vera.ttf");
 
-   SCREENWIDTH = display_width;
-   SCREENHEIGHT = display_height;
+   if(!font) return;
 
-   //fprintf(stderr,"Display width=%d, height=%d\n",display_width,display_height);
-
-   /* The main OSD image */
-   gx_create_window(SCREEN, display_width, display_height, GRAPHICS_RESOURCE_RGBA32, &osd->img);
-   graphics_resource_fill(osd->img, 0, 0, display_width, display_height, GRAPHICS_RGBA32(0,0,0,0));
-
-   graphics_display_resource(osd->img, 0, OSD_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 1);
-
-   /* A full-screen black image to either remove any left-over console text (BG_LAYER) or to hide the video (FG_LAYER) */
-   gx_create_window(SCREEN, display_width, display_height, GRAPHICS_RESOURCE_RGBA32, &osd->img_blank);
-   assert(s == 0);
-   graphics_resource_fill(osd->img_blank, 0, 0, display_width, display_height, GRAPHICS_RGBA32(0,0,0,255));
-
-   graphics_display_resource(osd->img_blank, 0, BG_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 1);
+   glClear(GL_COLOR_BUFFER_BIT);
+   setPos(50,120);
+   printText("piDVBip",144);
+   update_screen();
 
    osd->video_blanked = 0;
 
@@ -201,72 +282,27 @@ void osd_init(struct osd_t* osd)
 void osd_blank_video(struct osd_t* osd, int on_off)
 {
   pthread_mutex_lock(&osd->osd_mutex);
-  if (on_off) {
-    /* Display on top of video */
-    graphics_display_resource(osd->img_blank, 0, FG_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 1);
-  } else {
-    /* Display underneath video */
-    graphics_display_resource(osd->img_blank, 0, BG_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 1);
-  }
+  glClear(GL_COLOR_BUFFER_BIT);
+  update_screen();
   pthread_mutex_unlock(&osd->osd_mutex);
 }
 
-void osd_done(struct osd_t* osd)
-{
-   graphics_display_resource(osd->img, 0, OSD_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 0);
-   graphics_delete_resource(osd->img);
+void osd_done(struct osd_t* osd) { }
 
-   graphics_display_resource(osd->img_blank, 0, BG_LAYER, 0, 0, GRAPHICS_RESOURCE_WIDTH, GRAPHICS_RESOURCE_HEIGHT, VC_DISPMAN_ROT0, 0);
-   graphics_delete_resource(osd->img_blank);
-}
-
-
-static void osd_draw_window(struct osd_t* osd, int x, int y, int width, int height)
-{
-   graphics_resource_fill(osd->img, x, y, width, height, GRAPHICS_RGBA32(0,0,0,0x80));
-
-   graphics_resource_fill(osd->img, x, y, width, 2, GRAPHICS_RGBA32(0xff,0xff,0xff,0xa0));
-   graphics_resource_fill(osd->img, x, y+height-2, width, 2, GRAPHICS_RGBA32(0xff,0xff,0xff,0xa0));
-   graphics_resource_fill(osd->img, x, y, 2, height, GRAPHICS_RGBA32(0xff,0xff,0xff,0xa0));
-   graphics_resource_fill(osd->img, x+width-2, y, 2, height, GRAPHICS_RGBA32(0xff,0xff,0xff,0xa0));
-}
+static void osd_draw_window(struct osd_t* osd, int x, int y, int width, int height) { }
 
 static void osd_show_channelname(struct osd_t* osd, const char *text)
 {
-   uint32_t text_length = strlen(text);
-   int32_t s=0;
-   uint32_t width,height;
-   uint32_t y_offset = OSD_YMARGIN;
-   uint32_t x_offset = OSD_XMARGIN;
-   uint32_t text_size = 40;
-
-   //(void)graphics_resource_text_dimensions_ext(osd->img, text, text_length, &width, &height, text_size);
-
-   height = 80;
-   width = 600;
-
-   osd_draw_window(osd,x_offset,y_offset,width,height);
-
-   (void)graphics_resource_render_text_ext(osd->img, x_offset+50, y_offset+25,
-                                     width,
-                                     height,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     text, text_length, text_size);
-
+  setPos(0,5);
+  printText(text,16);
 }
 
 static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
 {
   char str[64];
-  int s;
   struct tm start_time;
   struct tm stop_time;
   int duration;
-  int width = SCREENWIDTH-2*OSD_XMARGIN;
-  int height = 380-OSD_YMARGIN;
-
-  osd_draw_window(osd,OSD_XMARGIN,SCREENHEIGHT-height,width,height);
 
   if (event==NULL)
     return;
@@ -275,34 +311,23 @@ static void osd_show_eventinfo(struct osd_t* osd, struct event_t* event)
   localtime_r((time_t*)&event->stop,&stop_time);
   duration = event->stop - event->start;
 
+  // programme title
+  setPos(0,125);
+  printText(event->title,16);
+
+  // programme start and stop time
   snprintf(str,sizeof(str),"%02d:%02d - %02d:%02d",start_time.tm_hour,start_time.tm_min,stop_time.tm_hour,stop_time.tm_min);
-  (void)graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, SCREENHEIGHT-height+20,
-                                     width,
-                                     height,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-				     str, strlen(str), 40);
+  setPos(0,140);
+  printText(str,16);
 
-
-  (void)graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+350, SCREENHEIGHT-height+20,
-                                     width,
-                                     height,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-				     event->title, strlen(event->title), 40);
-
-
+  // programme duration
   snprintf(str,sizeof(str),"%dh %02dm",duration/3600,(duration%3600)/60);
-  (void)graphics_resource_render_text_ext(osd->img, OSD_XMARGIN+50, SCREENHEIGHT-height+100,
-                                     width,
-                                     height,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-				     str, strlen(str), 30);
+  setPos(0,150);
+  printText(str,16);
 
-
-  render_paragraph(osd->img, event->description,30,OSD_XMARGIN+350,SCREENHEIGHT-height+100);
-
+  // description ( multi line)
+  setPos(0,170);
+  printText(event->description,16);
 }
 
 void osd_show_time(struct osd_t* osd)
@@ -310,23 +335,14 @@ void osd_show_time(struct osd_t* osd)
   struct tm now_tm;
   time_t now;
   char str[32];
-  int s;
-  int width = 188;
-  int height = 80;
-
-  osd_draw_window(osd,SCREENWIDTH - width-20,18,width,height);
 
   now = time(NULL);
   localtime_r(&now,&now_tm);
 
   snprintf(str,sizeof(str),"%02d:%02d",now_tm.tm_hour,now_tm.tm_min);
 
-  (void)graphics_resource_render_text_ext(osd->img, SCREENWIDTH - width + 20, OSD_YMARGIN+25,
-                                     width,
-                                     height,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-				     str, strlen(str), 40);
+  setPos(190,5);
+  printText(str,16);
 }
 
 void osd_show_info(struct osd_t* osd, int channel_id, int timeout)
@@ -340,11 +356,14 @@ void osd_show_info(struct osd_t* osd, int channel_id, int timeout)
 
   pthread_mutex_lock(&osd->osd_mutex);
 
+  glClear(GL_COLOR_BUFFER_BIT);
+
   osd_show_channelname(osd,str);
   osd_show_time(osd);
   osd_show_eventinfo(osd,event);
 
-  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+  update_screen();
+
   pthread_mutex_unlock(&osd->osd_mutex);
 
   event_free(event);
@@ -371,7 +390,7 @@ void osd_show_newchannel(struct osd_t* osd, int channel)
   fprintf(stderr,"New channel = %s\n",str);
   pthread_mutex_lock(&osd->osd_mutex);
   osd_show_channelname(osd,str);
-  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+  //graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
   pthread_mutex_unlock(&osd->osd_mutex);
 }
 
@@ -380,8 +399,10 @@ void osd_clear_newchannel(struct osd_t* osd)
   /* TODO: Only clear channel area */
 
   pthread_mutex_lock(&osd->osd_mutex);
-  graphics_resource_fill(osd->img, 0, 0, osd->display_width, osd->display_height, GRAPHICS_RGBA32(0,0,0,0));
-  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+
+  glClear(GL_COLOR_BUFFER_BIT);
+  update_screen();
+
   pthread_mutex_unlock(&osd->osd_mutex);
 
   fprintf(stderr,"Clearing OSD...\n");
@@ -390,8 +411,12 @@ void osd_clear_newchannel(struct osd_t* osd)
 void osd_clear(struct osd_t* osd)
 {
   pthread_mutex_lock(&osd->osd_mutex);
-  graphics_resource_fill(osd->img, 0, 0, osd->display_width, osd->display_height, GRAPHICS_RGBA32(0,0,0,0));
-  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+
+
+  glClear(GL_COLOR_BUFFER_BIT);
+  glColor3f(1,1,1);
+  update_screen();
+
   pthread_mutex_unlock(&osd->osd_mutex);
 
   fprintf(stderr,"Clearing OSD...\n");
@@ -402,7 +427,7 @@ void osd_clear(struct osd_t* osd)
 void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y, uint32_t color) {
   char str[128];
   time_t now;
-  char* iso_text;
+  char* iso_text = NULL;
   
   osd->event = channels_geteventid(channel_id);
   osd->nextEvent = channels_getnexteventid(channel_id);
@@ -421,10 +446,9 @@ void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y, uin
   int width = (event->stop - now) / 5;
   if (width < 400) width = 400;
   snprintf(str, sizeof(str),"%s",iso_text);
-  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, y, width, 50,
-                                     color,
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     str, strlen(str), 40);
+  setPos(50,y);
+  printText(str,16);
+
   free(iso_text);
 
   if (nextEvent->title) {
@@ -432,10 +456,9 @@ void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y, uin
     utf8decode(nextEvent->title, iso_text);
   }
   snprintf(str, sizeof(str),"%s",iso_text);
-  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + width + 90, y, 1000, 50,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* bg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     str, strlen(str), 40);
+  setPos(100,y);
+  printText(str,16);
+
   free(iso_text);
   event_free(event);
   event_free(nextEvent);
@@ -446,7 +469,7 @@ void osd_channellist_show_epg(struct osd_t* osd, int channel_id)
   char str[128];
   struct tm start_time;
   struct tm stop_time;
-  char* iso_text;
+  char* iso_text = NULL;
   
   osd->event = channels_geteventid(channel_id);
   osd->nextEvent = channels_getnexteventid(channel_id);
@@ -454,15 +477,12 @@ void osd_channellist_show_epg(struct osd_t* osd, int channel_id)
   struct event_t* event = event_copy(osd->event);
   struct event_t* nextEvent = event_copy(osd->nextEvent);
 
-  osd_draw_window(osd, 500 + OSD_XMARGIN + 40, OSD_YMARGIN , SCREENWIDTH - 500 - 90, 80);
+  //osd_draw_window(osd, 500 + OSD_XMARGIN + 40, OSD_YMARGIN , SCREENWIDTH - 500 - 90, 80);
 
   snprintf(str, sizeof(str),"%s",channels_getname(channel_id));
-  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN + 20, 1000, 50,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     str, strlen(str), 40);
+  //(void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN + 20, 1000, 50, GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */ GRAPHICS_RGBA32(0,0,0,0x80), /* bg */ str, strlen(str), 40);
 
-  osd_draw_window(osd, 500 + OSD_XMARGIN + 40, OSD_YMARGIN + 100, SCREENWIDTH - 500 - 90, 450);
+  //osd_draw_window(osd, 500 + OSD_XMARGIN + 40, OSD_YMARGIN + 100, SCREENWIDTH - 500 - 90, 450);
 
   if (event == NULL) return;
 
@@ -475,16 +495,13 @@ void osd_channellist_show_epg(struct osd_t* osd, int channel_id)
   }
 
   snprintf(str, sizeof(str),"%02d:%02d - %02d:%02d %s",start_time.tm_hour,start_time.tm_min,stop_time.tm_hour,stop_time.tm_min, iso_text);
-  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN  + 100 + 20, 1000, 50,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     str, strlen(str), 40);
+  //(void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN  + 100 + 20, 1000, 50, GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */ GRAPHICS_RGBA32(0,0,0,0x80), /* bg */ str, strlen(str), 40);
   free(iso_text);
 
   if (event->description) {
     char* iso_text = malloc(strlen(event->description)+1);
     utf8decode(event->description,iso_text);
-    render_paragraph(osd->img,iso_text,30,500 + OSD_XMARGIN + 50,OSD_YMARGIN + 100 + 70);
+    //render_paragraph(osd->img,iso_text,30,500 + OSD_XMARGIN + 50,OSD_YMARGIN + 100 + 70);
     free(iso_text);
   }
 
@@ -500,16 +517,13 @@ void osd_channellist_show_epg(struct osd_t* osd, int channel_id)
   }
   
   snprintf(str, sizeof(str),"%02d:%02d - %02d:%02d %s",start_time.tm_hour,start_time.tm_min,stop_time.tm_hour,stop_time.tm_min, iso_text);
-  (void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN + 340, 1000, 50,
-                                     GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */
-                                     GRAPHICS_RGBA32(0,0,0,0x80), /* bg */
-                                     str, strlen(str), 40);
+  //(void)graphics_resource_render_text_ext(osd->img, 500 + OSD_XMARGIN + 50, OSD_YMARGIN + 340, 1000, 50, GRAPHICS_RGBA32(0xff,0xff,0xff,0xff), /* fg */ GRAPHICS_RGBA32(0,0,0,0x80), /* bg */ str, strlen(str), 40);
   free(iso_text);
   
   if (nextEvent->description) {
     char* iso_text = malloc(strlen(nextEvent->description)+1);
     utf8decode(nextEvent->description,iso_text);
-    render_paragraph(osd->img,iso_text,30,500 + OSD_XMARGIN + 50,OSD_YMARGIN + 400);
+    //render_paragraph(osd->img,iso_text,30,500 + OSD_XMARGIN + 50,OSD_YMARGIN + 400);
     free(iso_text);
   }
   event_free(event);
@@ -520,47 +534,40 @@ void osd_channellist_update_channels(struct osd_t* osd, int direction)
 {
   char str[60];
   char* iso_text;
-  uint32_t x = OSD_XMARGIN + 40;  
-  uint32_t y = OSD_YMARGIN + 35;
-  uint32_t width = 380;
-  uint32_t height = 50;  
   int id;
+  int y=0;
   
-  y += osd->channellist_selected_pos * 50;  // old selected position
+  y += osd->channellist_selected_pos * 10;  // old selected position
   id = osd->channellist_prev_selected_channel;
   snprintf(str, sizeof(str), "%d %s", channels_getlcn(id), channels_getname(id)); 
   iso_text = malloc(strlen(str) + 1);
   utf8decode(str, iso_text);        
-  (void)graphics_resource_render_text_ext(osd->img, x, y, width, height,
-                                          COLOR_TEXT,       /* fg */
-                                          COLOR_BACKGROUND, /* bg */
-                                          iso_text, strlen(iso_text), 40);
+  //(void)graphics_resource_render_text_ext(osd->img, x, y, width, height, COLOR_TEXT,       /* fg */ COLOR_BACKGROUND, /* bg */ iso_text, strlen(iso_text), 40);
+  //setPos(0,y);
+  //printText(iso_text,16);
   free(iso_text);
   
-  osd_channellist_show_epg_line(osd, id, y, COLOR_TEXT);                                                                                      
+  //osd_channellist_show_epg_line(osd, id, y, COLOR_TEXT);                                                                                      
 
   if (direction == CHANNELLIST_DOWN) {
     osd->channellist_selected_pos++;
-    y += 50;
+    y += 10;
   }
   else {
     osd->channellist_selected_pos--;
-    y -= 50;
+    y -= 10;
   }
     id = osd->channellist_selected_channel;
     snprintf(str, sizeof(str), "%d %s", channels_getlcn(id), channels_getname(id)); 
     iso_text = malloc(strlen(str) + 1);
     utf8decode(str, iso_text);        
-    (void)graphics_resource_render_text_ext(osd->img, x, y, width, height,
-                                            COLOR_SELECTED_TEXT, /* fg */
-                                            COLOR_SELECTED_BACKGROUND,    /* bg */
-                                            iso_text, strlen(iso_text), 40);  
+    //(void)graphics_resource_render_text_ext(osd->img, x, y, width, height, COLOR_SELECTED_TEXT, /* fg */ COLOR_SELECTED_BACKGROUND,    /* bg */ iso_text, strlen(iso_text), 40);  
     //graphics_update_displayed_resource(osd->img, x, y, width, 100);                                         
     free(iso_text);                                        
   
     osd_channellist_show_epg_line(osd, id, y, COLOR_SELECTED_TEXT);                                                                                      
   //osd_channellist_show_epg(osd, id);                                                                                      
-  graphics_update_displayed_resource(osd->img, 0, 0, SCREENWIDTH,SCREENHEIGHT);                                        
+  //graphics_update_displayed_resource(osd->img, 0, 0, SCREENWIDTH,SCREENHEIGHT);                                        
 }
 
 void osd_channellist_display_channels(struct osd_t* osd)
@@ -571,12 +578,8 @@ void osd_channellist_display_channels(struct osd_t* osd)
   int id;
   int selected = 0;
   char str[60];
-  uint32_t width = 380;
-  uint32_t height = 50;
-  uint32_t x = OSD_XMARGIN + 40;
-  uint32_t y = OSD_YMARGIN + 35;
-  uint32_t color;
-  uint32_t bg_color;
+  uint32_t x = 0;
+  uint32_t y = 5;
   char* iso_text = NULL; 
   int first_channel;
   
@@ -585,7 +588,7 @@ void osd_channellist_display_channels(struct osd_t* osd)
   
   if (num_channels > 0) {
     // display max CHANNELLIST_NUM_CHANNELS channels
-    CHANNELLIST_NUM_CHANNELS = SCREENHEIGHT / 55;
+    CHANNELLIST_NUM_CHANNELS = 20;
     num_display = num_channels > CHANNELLIST_NUM_CHANNELS ? CHANNELLIST_NUM_CHANNELS : num_channels;
     id = osd->channellist_start_channel;
     
@@ -593,27 +596,24 @@ void osd_channellist_display_channels(struct osd_t* osd)
       if (id == osd->channellist_selected_channel) {
         selected = 1;
         osd->channellist_selected_pos = i;
-        color = COLOR_SELECTED_TEXT;
-        bg_color = COLOR_SELECTED_BACKGROUND;
+        glColor3f(0,1,0);
       }
       else {
         selected = 0;
-        color = COLOR_TEXT;
-        bg_color = COLOR_BACKGROUND;
+        glColor3f(1,1,1);
       } 
             
       snprintf(str, sizeof(str), "%d %s", channels_getlcn(id), channels_getname(id)); 
       iso_text = malloc(strlen(str) + 1);
       utf8decode(str, iso_text);        
-      (void)graphics_resource_render_text_ext(osd->img, x, y, width, height,
-                                            color,         /* fg */
-                                            bg_color,      /* bg */
-                                            iso_text, strlen(iso_text), 40);
+
+      setPos(x,y);
+      printText(iso_text,16);
                                             
       //fprintf(stderr, "%d %s %d\n", id, str, selected);  
-      osd_channellist_show_epg_line(osd, id, y, color);
+      //osd_channellist_show_epg_line(osd, id, y, color);
 
-      y += 50;
+      y += 10;
       free(iso_text);     
       id = channels_getnext(id);   
       if (id == first_channel) {
@@ -635,15 +635,13 @@ void osd_channellist_display_channels(struct osd_t* osd)
  */
 void osd_channellist_display(struct osd_t* osd)
 {   
-  uint32_t width = 450;
-  uint32_t height = SCREENHEIGHT - 4 * OSD_YMARGIN;
   
   pthread_mutex_lock(&osd->osd_mutex);
-  osd_draw_window(osd, OSD_XMARGIN, OSD_YMARGIN, width, height);
-  
+
+  glClear(GL_COLOR_BUFFER_BIT);
   osd_channellist_display_channels(osd);
-  
-  graphics_update_displayed_resource(osd->img, 0, 0, 0, 0);
+  update_screen();
+
   pthread_mutex_unlock(&osd->osd_mutex);
   osd->osd_state = OSD_CHANNELLIST;  
 }
@@ -753,3 +751,4 @@ int osd_process_key(struct osd_t* osd, int c) {
   }
   return c;
 }
+
