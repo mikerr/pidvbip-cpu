@@ -417,6 +417,7 @@ int get_input_key(int fd)
     if (ev[i].type == EV_KEY) {
       if ((ev[i].value == KEY_PRESS) || (ev[i].value == KEY_KEEPING_PRESSED)) {
         fprintf(stderr,"input code %d\n",ev[1].code);
+	
         switch(ev[1].code) {
           case KEY_0: return '0';
           case KEY_1: return '1';
@@ -440,6 +441,14 @@ int get_input_key(int fd)
           case KEY_LEFT: return 'l';
           case KEY_RIGHT: return 'r';
     
+          // MCE remote mappings
+          case 365: return 'c'; // GUIDE
+
+          case 352: return 'i'; // OK
+
+          case 358: return 'i'; // INFO
+          case 402: return 'n'; // PAGEUP
+          case 403: return 'p'; // PAGEDOWN
           default: break;
         }
       }
@@ -463,7 +472,7 @@ int main(int argc, char* argv[])
     double osd_cleartime = 0;
     int inputfd;
     char inputname[256] = "Unknown";
-    char *inputdevice = "/dev/input/event0";
+    char *inputdevice = "/dev/input/event2";
 
     htsp.host = NULL;
     htsp.ip = NULL;
@@ -739,7 +748,7 @@ next_channel:
                 //prev_user_channel_id = tmp;
                 actual_channel_id = new_actual_channel_id;
                 //msgqueue_add(&htsp.msgqueue, HTMSG_NEW_CHANNEL | actual_channel_id);
-                osd_show_info(&osd, user_channel_id,1000); /* 7 second timeout */
+                osd_show_info(&osd, user_channel_id,7000); /* 7 second timeout */
               }
 	      } else { 
               osd_clear(&osd);    
