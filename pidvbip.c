@@ -57,6 +57,7 @@ struct codecs_t {
   int is_paused;
 };
 
+struct codecs_t codecs;
 /* TODO: Should this be global? */
 struct htsp_t htsp;
 
@@ -169,7 +170,7 @@ static void do_pause(struct codecs_t* codecs, int pause)
       /* Currently playing, pause */
       fprintf(stderr,"[PAUSE]\n");
       codec_pause(&codecs->acodec);
-      //codec_pause(&codecs->vcodec);
+      //codec_pause(&codecs->vcodec); // segfault!
       codecs->is_paused = 1;
     }
   } else {
@@ -458,6 +459,51 @@ int get_input_key(int fd)
   return -1;
 }
 
+void tune_channel(int actual_channel_id ) {
+    int res;
+    struct htsp_message_t msg;
+    //blank_video_timeout = get_time() + 8000;
+
+    fprintf(stderr,"lock0\n");
+    if (codecs.vcodec.thread) {
+      codec_stop(&codecs.vcodec);
+      pthread_join(codecs.vcodec.thread,NULL);
+      fprintf(stderr,"[main thread] - killed video thread\n");
+    }
+
+    if (codecs.acodec.thread) {
+      codec_stop(&codecs.acodec);
+      pthread_join(codecs.acodec.thread,NULL);
+      fprintf(stderr,"[main thread] - killed audio thread\n");
+    }
+
+    htsp_lock(&htsp);
+
+    if (htsp.subscriptionId > 0) {
+      res = htsp_create_message(&msg,HMF_STR,"method","unsubscribe",HMF_S64,"subscriptionId",htsp.subscriptionId,HMF_NULL);
+      res = htsp_send_message(&htsp,&msg);
+      htsp_destroy_message(&msg);
+    }
+
+    memset(&codecs.acodec,0,sizeof(codecs.acodec));
+    
+    htsp_unlock(&htsp);
+
+    fprintf(stderr,"Tuning to channel %d - \"%s\"\n",channels_getlcn(actual_channel_id),channels_getname(actual_channel_id));
+
+    htsp_lock(&htsp);
+    res = htsp_create_message(&msg,HMF_STR,"method","subscribe",
+                                   HMF_S64,"channelId",actual_channel_id,
+                                   HMF_S64,"timeshiftPeriod",3600,
+                                   HMF_S64,"normts",1,
+                                   HMF_S64,"subscriptionId",++htsp.subscriptionId,
+                                   HMF_NULL);
+    res = htsp_send_message(&htsp,&msg);
+    htsp_unlock(&htsp);
+
+    htsp_destroy_message(&msg);
+}
+
 int main(int argc, char* argv[])
 {
     int res;
@@ -466,13 +512,12 @@ int main(int argc, char* argv[])
     int actual_channel_id = -1;
     int auto_hdtv = 0;
     struct htsp_message_t msg;
-    struct codecs_t codecs;
     struct osd_t osd;
     pthread_t htspthread = 0;
     double osd_cleartime = 0;
     int inputfd;
     char inputname[256] = "Unknown";
-    char *inputdevice = "/dev/input/event2";
+    char *inputdevice = "/dev/input/event0";
 
     htsp.host = NULL;
     htsp.ip = NULL;
@@ -563,7 +608,7 @@ int main(int argc, char* argv[])
     new.c_cc[VMIN] = 1;
     tcsetattr(0, TCSANOW, &new);
 
-    int num_events = 0;
+    //int num_events = 0;
     int done = 0;
     while (!done)
     {
@@ -585,7 +630,7 @@ int main(int argc, char* argv[])
        htsp_destroy_message(&msg);
     }
 
-    fprintf(stderr,"Initial sync completed - read data for %d events\n",num_events);
+    //fprintf(stderr,"Initial sync completed - read data for %d events\n",num_events);
 
     if (channels_getcount() == 0) {
       fprintf(stderr,"No channels available, exiting.\n");
@@ -607,57 +652,9 @@ int main(int argc, char* argv[])
     codecs.is_paused = 0;
 
     double blank_video_timeout;
-next_channel:
-    blank_video_timeout = get_time() + 8000;
 
-    fprintf(stderr,"lock0\n");
-    if (codecs.vcodec.thread) {
-      codec_stop(&codecs.vcodec);
-      pthread_join(codecs.vcodec.thread,NULL);
-      fprintf(stderr,"[main thread] - killed video thread\n");
-    }
-
-    fprintf(stderr,"lock1\n");
-    if (codecs.acodec.thread) {
-      codec_stop(&codecs.acodec);
-      pthread_join(codecs.acodec.thread,NULL);
-      fprintf(stderr,"[main thread] - killed audio thread\n");
-    }
-    fprintf(stderr,"lock3\n");
-
-    fprintf(stderr,"lock4\n");
-    htsp_lock(&htsp);
-    fprintf(stderr,"lock5\n");
-
-    if (htsp.subscriptionId > 0) {
-      res = htsp_create_message(&msg,HMF_STR,"method","unsubscribe",HMF_S64,"subscriptionId",htsp.subscriptionId,HMF_NULL);
-      res = htsp_send_message(&htsp,&msg);
-      htsp_destroy_message(&msg);
-    }
-
-    memset(&codecs.acodec,0,sizeof(codecs.acodec));
-    
-    fprintf(stderr,"lock6\n");
-    htsp_unlock(&htsp);
-
-    fprintf(stderr,"Tuning to channel %d - \"%s\"\n",channels_getlcn(user_channel_id),channels_getname(user_channel_id));
-
-    fprintf(stderr,"Waiting for lock\n");
-    htsp_lock(&htsp);
-    fprintf(stderr,"locked\n");
-    res = htsp_create_message(&msg,HMF_STR,"method","subscribe",
-                                   HMF_S64,"channelId",actual_channel_id,
-                                   HMF_S64,"timeshiftPeriod",3600,
-                                   HMF_S64,"normts",1,
-                                   HMF_S64,"subscriptionId",++htsp.subscriptionId,
-                                   HMF_NULL);
-    res = htsp_send_message(&htsp,&msg);
-    htsp_unlock(&htsp);
-
-    htsp_destroy_message(&msg);
-    fprintf(stderr,"HERE - subscribe message sent\n");
-
-    osd_show_info(&osd,user_channel_id,9000);
+    tune_channel(actual_channel_id);
+    osd_show_info(&osd,user_channel_id,6000);
 
     /* UI loop */
 
@@ -748,7 +745,7 @@ next_channel:
                 //prev_user_channel_id = tmp;
                 actual_channel_id = new_actual_channel_id;
                 //msgqueue_add(&htsp.msgqueue, HTMSG_NEW_CHANNEL | actual_channel_id);
-                osd_show_info(&osd, user_channel_id,7000); /* 7 second timeout */
+                osd_show_info(&osd, user_channel_id,3000); /* 3 second timeout */
               }
 	      } else { 
               osd_clear(&osd);    
@@ -773,7 +770,8 @@ next_channel:
             int new_actual_channel_id = get_actual_channel(auto_hdtv,user_channel_id);
             if (new_actual_channel_id != actual_channel_id) {
               actual_channel_id = new_actual_channel_id;
-              goto next_channel;
+              tune_channel(actual_channel_id);
+    	      osd_show_info(&osd,user_channel_id,3000);
             }
             break;
 
@@ -791,12 +789,18 @@ next_channel:
             break;
 
           case 'n':
-          case 'p':
-            if (c=='n') user_channel_id = channels_getnext(user_channel_id);
-            else user_channel_id = channels_getprev(user_channel_id);
+            user_channel_id = channels_getnext(user_channel_id);
             actual_channel_id = get_actual_channel(auto_hdtv,user_channel_id);
-
-            goto next_channel;
+            tune_channel(actual_channel_id);
+    	    osd_show_info(&osd,user_channel_id,6000);
+	    break;
+	   
+          case 'p':
+            user_channel_id = channels_getprev(user_channel_id);
+            actual_channel_id = get_actual_channel(auto_hdtv,user_channel_id);
+            tune_channel(actual_channel_id);
+    	    osd_show_info(&osd,user_channel_id,6000);
+	    break;
 /*
           case 'u':
             do_pause(&codecs,1);
@@ -842,13 +846,14 @@ next_channel:
         if (new_channel_id >= 0) {
           user_channel_id = new_channel_id;
           actual_channel_id = get_actual_channel(auto_hdtv,user_channel_id);
-          goto next_channel;
+          tune_channel(actual_channel_id);
+    	  osd_show_info(&osd,user_channel_id,6000);
         } else {
           osd_clear_newchannel(&osd);
           fprintf(stderr,"No such channel\n");
-          new_channel = -1;
-          new_channel_timeout = 0;
         }
+        new_channel = -1;
+        new_channel_timeout = 0;
       }
     }
 

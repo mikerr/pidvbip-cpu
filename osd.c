@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
@@ -391,8 +390,6 @@ void osd_clear_newchannel(struct osd_t* osd)
   update_screen();
 
   pthread_mutex_unlock(&osd->osd_mutex);
-
-  fprintf(stderr,"Clearing OSD...\n");
 }
 
 void osd_clear(struct osd_t* osd)
@@ -411,9 +408,6 @@ void osd_clear(struct osd_t* osd)
 }
 
 void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y) {
-  char str[128];
-  time_t now;
-  char* iso_text = NULL;
   
   osd->event = channels_geteventid(channel_id);
   osd->nextEvent = channels_getnexteventid(channel_id);
@@ -423,29 +417,12 @@ void osd_channellist_show_epg_line(struct osd_t* osd, int channel_id, int y) {
 
   if (event == NULL) return;
 
-  if (event->title) {
-    iso_text = malloc(strlen(event->title)+1);
-    utf8decode(event->title, iso_text);
-  }
-  
-  now = time(NULL);
-  int width = (event->stop - now) / 5;
-  if (width < 400) width = 400;
-  snprintf(str, sizeof(str),"%s",iso_text);
   setPos(50,y);
-  printText(str,16);
+  printText(event->title,16);
 
-  free(iso_text);
-
-  if (nextEvent->title) {
-    iso_text = malloc(strlen(nextEvent->title)+1);
-    utf8decode(nextEvent->title, iso_text);
-  }
-  snprintf(str, sizeof(str),"%s",iso_text);
   setPos(100,y);
-  printText(str,16);
+  printText(nextEvent->title,16);
 
-  free(iso_text);
   event_free(event);
   event_free(nextEvent);
 }
@@ -600,9 +577,6 @@ int osd_process_key(struct osd_t* osd, int c) {
   
   if (osd->osd_state == OSD_CHANNELLIST) {
     switch (c) {
-      case 'a':
-	      user_channelid = 33;
-	      break;
       case 'd':
         if (osd_channellist_selected_position(osd) == CHANNELLIST_BOTTOM) {
           // On bottom
