@@ -499,6 +499,7 @@ void tune_channel(int actual_channel_id ) {
                                    HMF_S64,"subscriptionId",++htsp.subscriptionId,
                                    HMF_NULL);
     res = htsp_send_message(&htsp,&msg);
+    if (res < 0) return;
     htsp_unlock(&htsp);
 
     htsp_destroy_message(&msg);

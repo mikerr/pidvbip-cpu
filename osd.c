@@ -119,11 +119,20 @@ return -1;
 
 void drm_init () {
 
-device = open ("/dev/dri/card1", O_RDWR);
-resources = drmModeGetResources (device);
+device = open ("/dev/dri/card0", O_RDWR);
+if ((resources = drmModeGetResources(device)) == NULL) // if we have the right device we can get it's resources
+        {
+        printf("/dev/dri/card0 does not have DRM resources, using card1, ");
+        device = open("/dev/dri/card1", O_RDWR | O_CLOEXEC); // if not, try the other one: (1)
+        resources = drmModeGetResources(device);
+        }
+if (resources == NULL) printf("Unable to get DRM resources on card1\n");  
+
 connector = find_connector (resources);
 connector_id = connector->connector_id;
 mode_info = connector->modes[0];
+printf("resolution: %ix%i\n", mode_info.hdisplay, mode_info.vdisplay);
+
 encoder = find_encoder (resources, connector);
 crtc = drmModeGetCrtc (device, encoder->crtc_id);
 drmModeFreeEncoder (encoder);
