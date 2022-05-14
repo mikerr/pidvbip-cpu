@@ -5,12 +5,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <bcm_host.h>
 #include "osd.h"
 #include "channels.h"
 #include "events.h"
-#include "utils.h"
 
 #include <FTGL/ftgl.h>
 
@@ -74,6 +74,22 @@ uint32_t fb;
 uint64_t modifier;
 
 FTGLfont *font;
+
+//---------------------
+
+
+double get_time(void)
+{
+  struct timeval tv;
+
+  gettimeofday(&tv,NULL);
+
+  double x = tv.tv_sec;
+  x *= 1000;
+  x += tv.tv_usec / 1000;
+
+  return x;
+}
 
 static void update_screen () {
 
@@ -576,7 +592,7 @@ void osd_update(struct osd_t* osd, int channel_id)
   }
 }
 
-int osd_recordings(struct osd_t* osd){
+void osd_recordings(struct osd_t* osd){
   int y= 10;
   glClear(GL_COLOR_BUFFER_BIT);
   osd_show_time(osd);

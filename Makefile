@@ -6,7 +6,7 @@ LIBS=-lopenmaxil -lbcm_host -lvcos -lvchiq_arm -lpthread -lavahi-common -lavahi-
 LDFLAGS=-L/opt/vc/lib
 INCLUDES=-I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads -I/usr/include/freetype2 -I/usr/include/arm-linux-gnueabi -I/usr/local/include -I/usr/include/libdrm
 
-OBJS=vcodec_mpeg2.o vcodec_omx.o sha1.o htsp.o vo_pi.o codec.o audioplay.o acodec_mpeg.o acodec_aac.o acodec_a52.o channels.o events.o avahi.o osd.o snapshot.o avl.o omx_utils.o utils.o 
+OBJS=vcodec_mpeg2.o vcodec_omx.o sha1.o htsp.o vo_pi.o codec.o audioplay.o acodec_mpeg.o acodec_aac.o acodec_a52.o channels.o events.o avahi.o osd.o snapshot.o avl.o omx_utils.o 
 
 TARGETS=pidvbip 
 
@@ -21,14 +21,9 @@ CFLAGS+=-DNDEBUG
 
 all: $(TARGETS)
 
-mpeg2test: mpeg2test.c vo_pi.o libmpeg2/libmpeg2.a
-	$(CC) $(INCLUDES) $(CFLAGS) $(LDFLAGS) -o mpeg2test mpeg2test.c vo_pi.o libmpeg2/libmpeg2.a $(LIBS)
-
 pidvbip: pidvbip.c libmpeg2/libmpeg2.a libs/ilclient/libilclient.a $(OBJS)
 	$(CC) $(INCLUDES) $(CFLAGS) $(LDFLAGS) -o pidvbip pidvbip.c $(OBJS) libmpeg2/libmpeg2.a libs/ilclient/libilclient.a $(LIBS)
 
-utils.o: utils.c utils.h
-	$(CC) $(INCLUDES) $(CFLAGS) -c -o utils.o utils.c
 snapshot.o: snapshot.c snapshot.h
 	$(CC) $(INCLUDES) $(CFLAGS) -c -o snapshot.o snapshot.c
 vo_pi.o: vo_pi.c vo_pi.h

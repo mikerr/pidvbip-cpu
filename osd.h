@@ -44,6 +44,8 @@ void osd_blank_video(struct osd_t* osd, int on_off);
 
 int osd_process_key(struct osd_t* osd, int c);
 void osd_channellist_display(struct osd_t* osd);
+void osd_recordings(struct osd_t* osd);
 
+double get_time(void); /* Get time of day in ms */
 
 #endif

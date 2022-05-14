@@ -47,7 +47,6 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "avahi.h"
 #include "cec.h"
 #include "snapshot.h"
-#include "utils.h"
 
 struct codecs_t {
   struct codec_t vcodec; // Video
