@@ -443,7 +443,13 @@ int get_input_key(int fd)
           case KEY_RIGHT: return 'r';
     
           // MCE remote mappings
+
+          case 226: return 'i'; // MENU
+
+          case 366: return 'r'; // RECORDEDTV
           case 365: return 'c'; // GUIDE
+          case 386: return 'i'; // LIVETV
+          case 389: return 'i'; // DVDMENU
 
           case 352: return 'i'; // OK
 
@@ -518,7 +524,7 @@ int main(int argc, char* argv[])
     double osd_cleartime = 0;
     int inputfd;
     char inputname[256] = "Unknown";
-    char *inputdevice = "/dev/input/event0";
+    char *inputdevice = "/dev/input/event2";
 
     htsp.host = NULL;
     htsp.ip = NULL;
@@ -736,6 +742,9 @@ int main(int argc, char* argv[])
 		    osd_show_info(&osd,user_channel_id,3000);
             break;
 
+	  case 'r':
+	    osd_recordings(&osd);
+	    break;
           case 'c':
   	    if (osd.osd_state == OSD_CHANNELLIST) {
               osd_clear(&osd);    

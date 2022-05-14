@@ -122,11 +122,11 @@ void drm_init () {
 device = open ("/dev/dri/card0", O_RDWR);
 if ((resources = drmModeGetResources(device)) == NULL) // if we have the right device we can get it's resources
         {
-        printf("/dev/dri/card0 does not have DRM resources, using card1, ");
+        //printf("/dev/dri/card0 does not have DRM resources, using card1, ");
         device = open("/dev/dri/card1", O_RDWR | O_CLOEXEC); // if not, try the other one: (1)
         resources = drmModeGetResources(device);
         }
-if (resources == NULL) printf("Unable to get DRM resources on card1\n");  
+if (resources == NULL) printf("Unable to get DRM resources on card0,1\n");  
 
 connector = find_connector (resources);
 connector_id = connector->connector_id;
@@ -266,6 +266,7 @@ void osd_init(struct osd_t* osd)
    drm_init();
 
    /* Create a pixmap font from a TrueType file. */
+   //font = ftglCreatePixmapFont("Vera.ttf");
    font = ftglCreatePixmapFont("Vera.ttf");
 
    if(!font) return;
@@ -573,6 +574,22 @@ void osd_update(struct osd_t* osd, int channel_id)
     osd_clear(osd);
     return;
   }
+}
+
+int osd_recordings(struct osd_t* osd){
+  int y= 10;
+  glClear(GL_COLOR_BUFFER_BIT);
+  osd_show_time(osd);
+ 
+  setPos(10,y);
+  y += 12;
+  printText("Recordings",16);
+  for (int i=0;i< 14; i++) {
+      setPos(40,y);
+      printText("RecordingTitle" ,16);
+      y += 12;
+  }
+  update_screen();
 }
 
 int osd_process_key(struct osd_t* osd, int c) {
