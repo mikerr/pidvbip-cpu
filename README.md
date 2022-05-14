@@ -25,7 +25,7 @@ The platform being used to develop pidvbip is Raspbian
 
 pidvbip requires the following dependencies:
 
-libmpg123-dev libfaad-dev liba52-dev libavahi-client-dev libfreetype6-dev
+libmpg123-dev libfaad-dev liba52-dev libavahi-client-dev libfreetype6-dev libftgl-dev
 
 
 MPEG-2 decoding
